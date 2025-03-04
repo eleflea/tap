@@ -94,7 +94,7 @@ export const handler = async (
     // if (!messages.find((message) => message.role === "system")) {
     //   messages.unshift({
     //     role: "system",
-    //     content: `You are a cybersecurity expert. Below is the latest relevant cybersecurity information:\n\n${formattedContent}`,
+    //     content: DEFAULT_SYSTEM_PROMPT + `Below is the latest relevant cybersecurity information:\n\n${formattedContent}`,
     //   });
     // }
 
