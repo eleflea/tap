@@ -16,7 +16,7 @@ export class GPTStack extends cdk.Stack {
       runtime: Runtime.NODEJS_22_X,
       entry: join(__dirname, "../src/lambda/chatGPTHandler.ts"),
       handler: "handler",
-      timeout: cdk.Duration.seconds(30),
+      timeout: cdk.Duration.seconds(120),
       environment: {
         API_KEY: process.env.API_KEY || "",
         BASE_URL: process.env.BASE_URL || "",
@@ -44,6 +44,6 @@ export class GPTStack extends cdk.Stack {
       description: "API Gateway URL",
     });
 
-    this.apiUrl = api.url;
+    this.apiUrl = `${api.url}/chat`;
   }
 }

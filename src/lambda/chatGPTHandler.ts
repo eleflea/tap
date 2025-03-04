@@ -23,6 +23,7 @@ const modelName = process.env.MODEL_NAME || "deepseek-v3";
 const openai = new OpenAI({
   apiKey: process.env.API_KEY,
   baseURL: process.env.BASE_URL,
+  defaultHeaders: { Authorization: `Bearer ${process.env.API_KEY}` },
 });
 
 export const handler = async (

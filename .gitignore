@@ -8,6 +8,7 @@ node_modules
 cdk.out
 
 .env*
+!.env.example
 
 
 # Frontend

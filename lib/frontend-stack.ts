@@ -23,7 +23,9 @@ export class FrontendStack extends cdk.Stack {
       },
     });
 
-    const masterBranch = amplifyApp.addBranch("main");
+    const masterBranch = amplifyApp.addBranch(
+      process.env.GITHUB_BRANCH ?? "main"
+    );
 
     new cdk.CfnOutput(this, "AmplifyAppUrl", {
       value: `https://${masterBranch.branchName}.${amplifyApp.defaultDomain}`,
