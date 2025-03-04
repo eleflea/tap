@@ -77,7 +77,11 @@ export const handler = async (
     // // Fetch only related cybersecurity data
     // const cyberSecurityData = await fetchCyberSecurityContent(keywords);
 
-
+    // Format the fetched content for the AI model
+    // let formattedContent = "";
+    // if (cyberSecurityData.length > 0) {
+    //   formattedContent = cyberSecurityData.map((item) => `- ${item.title}: ${item.content}`).join("\n");
+    // }
 
     if (!messages.find((message) => message.role === "system")) {
       messages.unshift({
