@@ -1,28 +1,38 @@
 import { useState } from "react";
 import "../../styles/home.css";
 
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+const chatApi = process.env.REACT_APP_API_URL ?? "";
+
+const getResponse = async (messages: Message[]) => {
+  const response = await fetch(chatApi, {
+    method: "POST",
+    body: JSON.stringify({ messages }),
+  });
+  const data = await response.json();
+  return data["choices"][0]["message"]["content"];
+};
+
 const Home = () => {
-
-  const [chats, setChats] = useState<{ sender: string; text: string }[]>(
-    []
-  );
-
-  const [input, setInput] = useState("")
+  const [chats, setChats] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
 
   const handleSend = () => {
     if (!input.trim()) return;
 
-    const userMessage = { sender: "user", text: input };
-    setChats([...chats, userMessage]);
+    const userMessage = { role: "user", content: input } as Message;
+    const nextChats = [...chats, userMessage];
+    setChats(nextChats);
     setInput("");
 
-    setTimeout(() => {
-      const botMessage = {
-        sender: "bot",
-        text: `You said: "${input}"`,
-      };
+    getResponse(nextChats).then((response) => {
+      const botMessage = { role: "assistant", content: response } as Message;
       setChats((prev) => [...prev, botMessage]);
-    }, 500);
+    });
   };
 
   return (
@@ -32,12 +42,12 @@ const Home = () => {
           <div
             key={index}
             className={`p-2 rounded-lg max-w-xs ${
-              chat.sender === "user"
+              chat.role === "user"
                 ? "bg-blue-500 text-white self-end"
                 : "bg-gray-200 text-gray-800 self-start"
             }`}
           >
-            {chat.text}
+            {chat.role}: {chat.content}
           </div>
         ))}
       </div>
@@ -55,8 +65,8 @@ const Home = () => {
           onClick={handleSend}
         >
           {/* <Send size={20} /> */}
+          Send
         </button>
-        <p>url: {process.env.REACT_APP_API_URL}</p>
       </div>
     </div>
   );
