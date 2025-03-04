@@ -56,6 +56,7 @@ const Home = () => {
         >
           {/* <Send size={20} /> */}
         </button>
+        <p>url: {process.env.REACT_APP_API_URL}</p>
       </div>
     </div>
   );
