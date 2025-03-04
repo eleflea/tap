@@ -9,4 +9,4 @@ curl -X POST "https://qm46h5yo30.execute-api.ap-southeast-2.amazonaws.com/prod/c
            "max_tokens": 100,
            "temperature": 0.7,
            "stream": false
-         }'
+         }' | jq -r '.choices[0].message.content'
