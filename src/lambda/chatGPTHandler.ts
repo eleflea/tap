@@ -1,4 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+// import AWS from "aws-sdk";
 import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources";
 
@@ -26,6 +27,33 @@ const openai = new OpenAI({
   defaultHeaders: { Authorization: `Bearer ${process.env.API_KEY}` },
 });
 
+// const dynamoDB = new AWS.DynamoDB.DocumentClient();
+// const TABLE_NAME = process.env.DYNAMO_TABLE_NAME;
+
+// const extractKeywords = (message: string): string[] => {
+//   const keywordList = ["DDoS", "ransomware", "phishing", "malware", "zero-day", "APT", "MITRE ATT&CK", "CVE"]; // Expand as needed
+//   return keywordList.filter((keyword) => message.toLowerCase().includes(keyword.toLowerCase()));
+// };
+
+// const fetchCyberSecurityContent = async (keywords: string[]) => {
+//   if (keywords.length === 0) return [];
+
+//   const filterExpressions = keywords.map((_, index) => `contains(content, :kw${index})`).join(" OR ");
+//   const expressionAttributeValues = keywords.reduce((acc, keyword, index) => {
+//     acc[`:kw${index}`] = keyword;
+//     return acc;
+//   }, {} as Record<string, string>);
+
+//   const params = {
+//     TableName: TABLE_NAME,
+//     FilterExpression: filterExpressions,
+//     ExpressionAttributeValues: expressionAttributeValues,
+//   };
+
+//   const data = await dynamoDB.scan(params).promise();
+//   return data.Items || [];
+// };
+
 export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
@@ -43,12 +71,29 @@ export const handler = async (
       };
     }
 
+    // // Extract relevant keywords from the user message
+    // const keywords = extractKeywords(userMessage);
+
+    // // Fetch only related cybersecurity data
+    // const cyberSecurityData = await fetchCyberSecurityContent(keywords);
+
+
+
     if (!messages.find((message) => message.role === "system")) {
       messages.unshift({
         role: "system",
         content: DEFAULT_SYSTEM_PROMPT,
       });
     }
+
+    // Inject system prompt dynamically with relevant cybersecurity data
+    // if (!messages.find((message) => message.role === "system")) {
+    //   messages.unshift({
+    //     role: "system",
+    //     content: `You are a cybersecurity expert. Below is the latest relevant cybersecurity information:\n\n${formattedContent}`,
+    //   });
+    // }
+
 
     const response = await openai.chat.completions.create({
       model: modelName,
