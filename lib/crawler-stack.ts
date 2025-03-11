@@ -9,6 +9,8 @@ import { Construct } from 'constructs';
 import { join } from "path";
 
 export class CrawlerStack extends cdk.Stack {
+  public readonly cyberThreatTableArn: string;
+  
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
@@ -69,6 +71,13 @@ export class CrawlerStack extends cdk.Stack {
     });
 
     api.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+
+    // Export the table ARN
+    this.cyberThreatTableArn = cyberThreatTable.tableArn;
+    new cdk.CfnOutput(this, 'CyberThreatTableArn', {
+      value: this.cyberThreatTableArn,
+      exportName: 'CyberThreatTableArn', // Allows other stacks to reference it
+    });
   }
 }
 

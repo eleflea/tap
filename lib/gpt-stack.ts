@@ -4,12 +4,16 @@ import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { join } from "path";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 export class GPTStack extends cdk.Stack {
   public readonly apiUrl: string;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+     // Import the exported DynamoDB table ARN
+     const cyberThreatTableArn = cdk.Fn.importValue('CyberThreatTableArn');
 
     // Create the Lambda function
     const chatGPTHandler = new NodejsFunction(this, "ChatGPTHandler", {
@@ -25,6 +29,14 @@ export class GPTStack extends cdk.Stack {
     });
 
     chatGPTHandler.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+
+    // Grant DynamoDB scan permission to the Lambda function
+    chatGPTHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:Scan"],
+        resources: [cyberThreatTableArn],
+      })
+    );
 
     // Create API Gateway
     const api = new apigateway.RestApi(this, "ChatGPTApi", {
