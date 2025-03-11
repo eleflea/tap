@@ -3,8 +3,9 @@ import { Construct } from "constructs";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import { join } from "path";
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
+import * as integrations from "aws-cdk-lib/aws-apigatewayv2-integrations";
 
 interface GPTStackProps extends cdk.StackProps {
   cyberThreatTableArn: string;
@@ -29,8 +30,11 @@ export class GPTStack extends cdk.Stack {
       },
     });
 
-    chatGPTHandler.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
-
+    chatGPTHandler.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
+    chatGPTHandler.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['execute-api:ManageConnections'],
+      resources: ['*'],
+    }));
     // Grant DynamoDB scan permission to the Lambda function
     chatGPTHandler.addToRolePolicy(
       new iam.PolicyStatement({
@@ -39,28 +43,42 @@ export class GPTStack extends cdk.Stack {
       })
     );
 
-    // Create API Gateway
-    const api = new apigateway.RestApi(this, "ChatGPTApi", {
-      restApiName: "ChatGPT API",
-      description: "API for ChatGPT integration",
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: apigateway.Cors.ALL_METHODS,
+    const api = new apigwv2.WebSocketApi(this, "ChatGPTApi", {
+      connectRouteOptions: {
+        integration: new integrations.WebSocketLambdaIntegration(
+          "ConnectIntegration",
+          chatGPTHandler
+        ),
+      },
+      disconnectRouteOptions: {
+        integration: new integrations.WebSocketLambdaIntegration(
+          "DisconnectIntegration",
+          chatGPTHandler
+        ),
+      },
+      defaultRouteOptions: {
+        integration: new integrations.WebSocketLambdaIntegration(
+          "DefaultIntegration",
+          chatGPTHandler
+        ),
       },
     });
+    api.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
+    chatGPTHandler.addEnvironment(
+      "WEBSOCKET_API_ENDPOINT",
+      `${api.apiEndpoint}/prod`
+    );
 
-    api.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
-
-    // Create API resource and method
-    const chatGPT = api.root.addResource("chat");
-    chatGPT.addMethod("POST", new apigateway.LambdaIntegration(chatGPTHandler));
-
-    // Output the API URL
-    new cdk.CfnOutput(this, "ApiUrl", {
-      value: api.url,
-      description: "API Gateway URL",
+    new apigwv2.WebSocketStage(this, "ChatGPTStage", {
+      webSocketApi: api,
+      stageName: "prod",
+      autoDeploy: true,
     });
 
-    this.apiUrl = `${api.url}chat`;
+    new cdk.CfnOutput(this, "ChatGPTUrl", {
+      value: api.apiEndpoint,
+    });
+
+    this.apiUrl = `${api.apiEndpoint}/prod`;
   }
 }

@@ -1,5 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import AWS from "aws-sdk";
+import { DynamoDB } from "aws-sdk";
+import {
+  ApiGatewayManagementApiClient,
+  PostToConnectionCommand,
+} from "@aws-sdk/client-apigatewaymanagementapi";
 import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources";
 
@@ -27,20 +31,53 @@ const openai = new OpenAI({
   defaultHeaders: { Authorization: `Bearer ${process.env.API_KEY}` },
 });
 
-const dynamoDB = new AWS.DynamoDB.DocumentClient();
+const dynamoDB = new DynamoDB.DocumentClient();
 const TABLE_NAME = "CyberThreatData";
 
 const extractKeywords = (message: string): string[] => {
   const keywordList = [
-    "phishing", "malware", "ransomware", "denial-of-service", "dos", "supply chain", "zero-day", "sql injection",
-    "tactics", "techniques", "procedures", "mitre", "spear phishing", "credential dumping",
-    "ioc", "indicators", "ip address", "domain", "file hash", "md5", "sha-256", "registry",
-    "reconnaissance", "initial compromise", "lateral movement", "data exfiltration", "persistence",
-    "incident report", "case study", "breach", "forensic", "analysis",
-    "threat intelligence", "feed", "alienvault", "recorded future", "threat feed"
-  ];  // Expand as needed
+    "phishing",
+    "malware",
+    "ransomware",
+    "denial-of-service",
+    "dos",
+    "supply chain",
+    "zero-day",
+    "sql injection",
+    "tactics",
+    "techniques",
+    "procedures",
+    "mitre",
+    "spear phishing",
+    "credential dumping",
+    "ioc",
+    "indicators",
+    "ip address",
+    "domain",
+    "file hash",
+    "md5",
+    "sha-256",
+    "registry",
+    "reconnaissance",
+    "initial compromise",
+    "lateral movement",
+    "data exfiltration",
+    "persistence",
+    "incident report",
+    "case study",
+    "breach",
+    "forensic",
+    "analysis",
+    "threat intelligence",
+    "feed",
+    "alienvault",
+    "recorded future",
+    "threat feed",
+  ]; // Expand as needed
 
-  return keywordList.filter((keyword) => message.toLowerCase().includes(keyword.toLowerCase()));
+  return keywordList.filter((keyword) =>
+    message.toLowerCase().includes(keyword.toLowerCase())
+  );
 };
 
 const fetchCyberSecurityContent = async (keywords: string[]) => {
@@ -55,17 +92,23 @@ const fetchCyberSecurityContent = async (keywords: string[]) => {
   const relevantContent: string[] = [];
 
   for (const item of data.Items || []) {
-    let threatCategories = item.ThreatCategories
+    let threatCategories = item.ThreatCategories;
     if (!threatCategories) continue;
 
     threatCategories = JSON.parse(item.ThreatCategories);
 
     for (const category in threatCategories) {
-      const categoryKeywords: string[] = threatCategories[category].map((keyword: string) => keyword.toLowerCase());
-    
-      if (keywords.some((keyword: string) => categoryKeywords.includes(keyword.toLowerCase()))) {
-          relevantContent.push(item.RawContent);
-          break; // Avoid duplicates if multiple keywords match
+      const categoryKeywords: string[] = threatCategories[category].map(
+        (keyword: string) => keyword.toLowerCase()
+      );
+
+      if (
+        keywords.some((keyword: string) =>
+          categoryKeywords.includes(keyword.toLowerCase())
+        )
+      ) {
+        relevantContent.push(item.RawContent);
+        break; // Avoid duplicates if multiple keywords match
       }
     }
   }
@@ -77,11 +120,20 @@ export const handler = async (
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
   try {
-    const body = JSON.parse(event.body || "{}");
+    const { routeKey, connectionId } = event.requestContext;
+
+    if (routeKey === "$connect") {
+      return { statusCode: 200, body: "Connected" };
+    }
+
+    if (routeKey === "$disconnect") {
+      return { statusCode: 200, body: "Disconnected" };
+    }
+
+    const body = JSON.parse(event.body ?? "");
     const messages = body.messages as ChatCompletionMessageParam[];
     const max_tokens = body.max_tokens ?? 4096;
     const temperature = body.temperature ?? 0.7;
-    const stream = body.stream ?? false;
 
     if (!messages) {
       return {
@@ -90,13 +142,15 @@ export const handler = async (
       };
     }
 
-    const userMessageObj = messages.find(msg => msg.role === "user");
+    const userMessageObj = messages.find((msg) => msg.role === "user");
 
     let userMessage = "";
     if (typeof userMessageObj?.content === "string") {
-        userMessage = userMessageObj.content;
+      userMessage = userMessageObj.content;
     } else if (Array.isArray(userMessageObj?.content)) {
-        userMessage = userMessageObj.content.map(part => part.toString()).join(" ");
+      userMessage = userMessageObj.content
+        .map((part) => part.toString())
+        .join(" ");
     }
 
     // Extract relevant keywords from the user message
@@ -108,43 +162,66 @@ export const handler = async (
     // Format the fetched content for the AI model
     let formattedContent = "";
     if (cyberSecurityData.length > 0) {
-      formattedContent = cyberSecurityData.map((item, index) => `${index + 1}: ${item}`).join("\n");
+      formattedContent = cyberSecurityData
+        .map((item, index) => `${index + 1}: ${item}`)
+        .join("\n");
     }
 
     // Inject system prompt dynamically with relevant cybersecurity data
     const systemMessage: ChatCompletionMessageParam = {
       role: "system",
       content: formattedContent
-        ? DEFAULT_SYSTEM_PROMPT + `\n\nUsing these information in your response:\n\n${formattedContent}`
+        ? DEFAULT_SYSTEM_PROMPT +
+          `\n\nUsing these information in your response:\n\n${formattedContent}`
         : DEFAULT_SYSTEM_PROMPT,
     };
 
     // Ensure only one system prompt is added
-    const existingSystemMessageIndex = messages.findIndex((msg) => msg.role === "system");
+    const existingSystemMessageIndex = messages.findIndex(
+      (msg) => msg.role === "system"
+    );
     if (existingSystemMessageIndex !== -1) {
       messages[existingSystemMessageIndex] = systemMessage;
     } else {
       messages.unshift(systemMessage);
     }
 
-    const response = await openai.chat.completions.create({
+    const responseStream = await openai.chat.completions.create({
       model: modelName,
       messages,
       max_tokens,
       temperature,
       stop: null,
-      stream,
+      stream: true,
     });
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, GET",
-        "Access-Control-Allow-Headers": "Content-Type",
-      },
-      body: JSON.stringify(response),
-    };
+    const client = new ApiGatewayManagementApiClient({
+      endpoint: process.env.WEBSOCKET_API_ENDPOINT?.replace(
+        "wss://",
+        "https://"
+      ),
+    });
+    for await (const chunk of responseStream) {
+      console.log("connectionId", connectionId);
+      console.log(
+        "Sending message to client",
+        process.env.WEBSOCKET_API_ENDPOINT?.replace("wss://", "https://"),
+        JSON.stringify(chunk)
+      );
+
+      try {
+        await client.send(
+          new PostToConnectionCommand({
+            ConnectionId: connectionId ?? "",
+            Data: Buffer.from(JSON.stringify(chunk)),
+          })
+        );
+      } catch (error) {
+        console.error("Error sending message to client", error);
+      }
+    }
+
+    return { statusCode: 200, body: "Message processed" };
   } catch (error) {
     return {
       statusCode: 500,

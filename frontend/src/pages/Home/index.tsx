@@ -6,20 +6,55 @@ interface Message {
   content: string;
 }
 
-const chatApi = process.env.REACT_APP_API_URL ?? "";
+const chatApi =
+  process.env.REACT_APP_API_URL ??
+  "wss://ncf8cwcpz5.execute-api.ap-southeast-2.amazonaws.com/prod";
 
-const getResponse = async (messages: Message[]) => {
-  const response = await fetch(chatApi, {
-    method: "POST",
-    body: JSON.stringify({ messages }),
-  });
-  const data = await response.json();
-  return data["choices"][0]["message"]["content"];
+const getResponse = async (
+  messages: Message[],
+  appendResponse: (delta: string) => void
+) => {
+  const socket = new WebSocket(chatApi);
+
+  socket.onopen = () => {
+    console.log("WebSocket connection established.");
+    socket.send(
+      JSON.stringify({
+        action: "sendMessage",
+        messages,
+      })
+    );
+  };
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    appendResponse(data.choices[0].delta.content);
+  };
+
+  socket.onclose = () => {
+    console.log("WebSocket connection closed.");
+  };
+
+  socket.onerror = (error) => {
+    console.error("WebSocket error:", error);
+  };
 };
 
 const Home = () => {
   const [chats, setChats] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+
+  const appendResponse = (delta: string) => {
+    setChats((prev) => {
+      if (prev.at(-1)?.role === "user") {
+        return [...prev, { role: "assistant", content: delta }];
+      }
+      return [
+        ...prev.slice(0, -1),
+        { role: "assistant", content: prev.at(-1)?.content + delta },
+      ];
+    });
+  };
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -29,10 +64,7 @@ const Home = () => {
     setChats(nextChats);
     setInput("");
 
-    getResponse(nextChats).then((response) => {
-      const botMessage = { role: "assistant", content: response } as Message;
-      setChats((prev) => [...prev, botMessage]);
-    });
+    getResponse(nextChats, appendResponse);
   };
   
 
