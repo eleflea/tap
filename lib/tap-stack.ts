@@ -15,7 +15,9 @@ export class TapStack extends cdk.Stack {
     const crawlerStack = new CrawlerStack(this, "CrawlerStack");
 
     // Instantiate the GPT Stack
-    const gptStack = new GPTStack(this, "GPTStack");
+    const gptStack = new GPTStack(this, "GPTStack", {
+      cyberThreatTableArn: crawlerStack.cyberThreatTableArn,
+    });
 
     // Instantiate the Frontend Stack, passing the API URL from GPT Stack
     const frontendStack = new FrontendStack(this, "FrontendStack", {

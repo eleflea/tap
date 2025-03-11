@@ -74,9 +74,10 @@ export class CrawlerStack extends cdk.Stack {
 
     // Export the table ARN
     this.cyberThreatTableArn = cyberThreatTable.tableArn;
+    
     new cdk.CfnOutput(this, 'CyberThreatTableArn', {
       value: this.cyberThreatTableArn,
-      exportName: 'CyberThreatTableArn', // Allows other stacks to reference it
+      exportName: 'CyberThreatTableArn',
     });
   }
 }
