@@ -61,6 +61,6 @@ export class GPTStack extends cdk.Stack {
       description: "API Gateway URL",
     });
 
-    this.apiUrl = `${api.url}/chat`;
+    this.apiUrl = `${api.url}chat`;
   }
 }
