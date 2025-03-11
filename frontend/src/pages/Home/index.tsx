@@ -36,37 +36,39 @@ const Home = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-white shadow-lg rounded-xl p-4 flex flex-col h-96">
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
-        {chats.map((chat, index) => (
-          <div
-            key={index}
-            className={`p-2 rounded-lg max-w-xs ${
-              chat.role === "user"
-                ? "bg-blue-500 text-white self-end"
-                : "bg-gray-200 text-gray-800 self-start"
-            }`}
+    <div className="w-full h-screen max-h-screen flex flex-col justify-center items-center bg-gray-100 gap-6">
+      <h1 className="text-2xl font-bold text-gray-800">Your Hacker Friend</h1>
+      <div className="bg-white shadow-lg rounded-xl p-4 flex flex-col w-4/5 h-4/5">
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          {chats.map((chat, index) => (
+            <div
+              key={index}
+              className={`p-2 rounded-lg max-w-xs ${
+                chat.role === "user"
+                  ? "bg-blue-500 text-white self-end"
+                  : "bg-gray-200 text-gray-800 self-start"
+              }`}
+            >
+              {chat.role}: <ReactMarkdown>{chat.content}</ReactMarkdown>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center p-2 border-t">
+          <input
+            type="text"
+            className="flex-1 p-2 border rounded-lg outline-none"
+            placeholder="Type a message..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          />
+          <button
+            className="ml-2 p-2 bg-blue-500 text-white rounded-lg"
+            onClick={handleSend}
           >
-            {chat.role}: <ReactMarkdown>{chat.content}</ReactMarkdown>
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center p-2 border-t">
-        <input
-          type="text"
-          className="flex-1 p-2 border rounded-lg outline-none"
-          placeholder="Type a message..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        />
-        <button
-          className="ml-2 p-2 bg-blue-500 text-white rounded-lg"
-          onClick={handleSend}
-        >
-          {/* <Send size={20} /> */}
-          Send
-        </button>
+            Send
+          </button>
+        </div>
       </div>
     </div>
   );
