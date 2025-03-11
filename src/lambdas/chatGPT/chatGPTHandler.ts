@@ -55,21 +55,30 @@ const fetchCyberSecurityContent = async (keywords: string[]) => {
   const relevantContent: string[] = [];
 
   for (const item of data.Items || []) {
-    relevantContent.push(item.RawContent);
+    let threatCategories;
 
-    // const threatCategories = item.ThreatCategories;
-    // if (!threatCategories) continue;
+    try {
+        threatCategories = JSON.parse(item.ThreatCategories);
+    } catch (error) {
+        threatCategories = null; // Handle invalid JSON
+    }
 
-    // for (const category in threatCategories) {
-    //   if (threatCategories[category].L) {
-    //     const categoryKeywords = threatCategories[category].L.map((entry: { S: string }) => entry.S.toLowerCase());
+    // Check if threatCategories is null, undefined, or an empty object/array
+    if (!threatCategories || (Array.isArray(threatCategories) && threatCategories.length === 0) || 
+        (typeof threatCategories === 'object' && Object.keys(threatCategories).length === 0)) {
+        continue;
+    }
 
-    //     if (keywords.some(keyword => categoryKeywords.includes(keyword.toLowerCase()))) {
-    //       relevantContent.push(item.RawContent);
-    //       break; // Avoid duplicates if multiple keywords match
-    //     }
-    //   }
-    // }
+    for (const category in threatCategories) {
+      if (threatCategories[category].L) {
+        const categoryKeywords = threatCategories[category].L.map((entry: { S: string }) => entry.S.toLowerCase());
+
+        if (keywords.some(keyword => categoryKeywords.includes(keyword.toLowerCase()))) {
+          relevantContent.push(item.RawContent);
+          break; // Avoid duplicates if multiple keywords match
+        }
+      }
+    }
   }
 
   return relevantContent;
@@ -114,18 +123,11 @@ export const handler = async (
     }
 
     // Inject system prompt dynamically with relevant cybersecurity data
-    // const systemMessage: ChatCompletionMessageParam = {
-    //   role: "system",
-    //   content: formattedContent
-    //     ? DEFAULT_SYSTEM_PROMPT + `\n\nUsing these information in your response:\n\n${formattedContent}`
-    //     : DEFAULT_SYSTEM_PROMPT,
-    // };
-
     const systemMessage: ChatCompletionMessageParam = {
       role: "system",
       content: formattedContent
-        ? DEFAULT_SYSTEM_PROMPT + `\n\nPlease response back exactly this message:\n\n${formattedContent}`
-        : DEFAULT_SYSTEM_PROMPT + `Please response: "blank"`,
+        ? DEFAULT_SYSTEM_PROMPT + `\n\nUsing these information in your response:\n\n${formattedContent}`
+        : DEFAULT_SYSTEM_PROMPT,
     };
 
     // Ensure only one system prompt is added
