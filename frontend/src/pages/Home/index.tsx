@@ -1,5 +1,4 @@
 import { useState } from "react";
-import "../../styles/home.css";
 
 interface Message {
   role: "user" | "assistant";
