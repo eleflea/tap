@@ -46,21 +46,31 @@ const extractKeywords = (message: string): string[] => {
 const fetchCyberSecurityContent = async (keywords: string[]) => {
   if (keywords.length === 0) return [];
 
-  const filterExpressions = keywords.map((_, index) => `contains(ThreatCategories, :kw${index})`).join(" OR ");
-  const expressionAttributeValues = keywords.reduce((acc, keyword, index) => {
-    acc[`:kw${index}`] = { S: keyword };
-    return acc;
-  }, {} as Record<string, { S: string }>);
-
   const params = {
     TableName: TABLE_NAME,
-    FilterExpression: filterExpressions,
-    ExpressionAttributeValues: expressionAttributeValues,
   };
 
   const data = await dynamoDB.scan(params).promise();
 
-  return (data.Items || []).map(item => item.RawContent);
+  const relevantContent: string[] = [];
+
+  for (const item of data.Items || []) {
+    const threatCategories = item.ThreatCategories;
+    if (!threatCategories) continue;
+
+    for (const category in threatCategories) {
+      if (threatCategories[category].L) {
+        const categoryKeywords = threatCategories[category].L.map((entry: { S: string }) => entry.S.toLowerCase());
+
+        if (keywords.some(keyword => categoryKeywords.includes(keyword.toLowerCase()))) {
+          relevantContent.push(item.RawContent);
+          break; // Avoid duplicates if multiple keywords match
+        }
+      }
+    }
+  }
+
+  return relevantContent;
 };
 
 export const handler = async (
@@ -89,10 +99,10 @@ export const handler = async (
         userMessage = userMessageObj.content.map(part => part.toString()).join(" ");
     }
 
-    // // Extract relevant keywords from the user message
+    // Extract relevant keywords from the user message
     const keywords = extractKeywords(userMessage);
 
-    // // Fetch only related cybersecurity data
+    // Fetch only related cybersecurity data
     const cyberSecurityData = await fetchCyberSecurityContent(keywords);
 
     // Format the fetched content for the AI model
@@ -101,21 +111,21 @@ export const handler = async (
       formattedContent = cyberSecurityData.map((item, index) => `${index + 1}: ${item}`).join("\n");
     }
 
-    if (!messages.find((message) => message.role === "system")) {
-      messages.unshift({
-        role: "system",
-        content: DEFAULT_SYSTEM_PROMPT,
-      });
-    }
-
     // Inject system prompt dynamically with relevant cybersecurity data
-    if (!messages.find((message) => message.role === "system")) {
-      messages.unshift({
-        role: "system",
-        content: DEFAULT_SYSTEM_PROMPT + `Below is the latest relevant cybersecurity information:\n\n${formattedContent}`,
-      });
-    }
+    const systemMessage: ChatCompletionMessageParam = {
+      role: "system",
+      content: formattedContent
+        ? DEFAULT_SYSTEM_PROMPT + `\n\nBelow is the latest relevant cybersecurity information:\n\n${formattedContent}`
+        : DEFAULT_SYSTEM_PROMPT,
+    };
 
+    // Ensure only one system prompt is added
+    const existingSystemMessageIndex = messages.findIndex((msg) => msg.role === "system");
+    if (existingSystemMessageIndex !== -1) {
+      messages[existingSystemMessageIndex] = systemMessage;
+    } else {
+      messages.unshift(systemMessage);
+    }
 
     const response = await openai.chat.completions.create({
       model: modelName,
