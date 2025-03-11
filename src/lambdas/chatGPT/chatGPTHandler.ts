@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-// import AWS from "aws-sdk";
+import AWS from "aws-sdk";
 import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources";
 
@@ -27,90 +27,41 @@ const openai = new OpenAI({
   defaultHeaders: { Authorization: `Bearer ${process.env.API_KEY}` },
 });
 
-// const dynamoDB = new AWS.DynamoDB.DocumentClient();
-// const TABLE_NAME = process.env.DYNAMO_TABLE_NAME;
+const dynamoDB = new AWS.DynamoDB.DocumentClient();
+const TABLE_NAME = "CyberThreatData";
 
-// const extractKeywords = (message: string): string[] => {
-//   const keywordList = [
-//   "cyber threat",
-//   "malicious",
-//   "threat actor",
-//   "cyberattack",
-//   "intrusion",
-//   "exploitation",
-//   "vulnerability",
-//   "risk",
-//   "threat detection",
-//   "phishing",
-//   "malware",
-//   "ransomware",
-//   "denial-of-service (dos)",
-//   "distributed denial-of-service (ddos)",
-//   "zero-day",
-//   "sql injection",
-//   "supply chain",
-//   "man-in-the-middle (mitm)",
-//   "tactics",
-//   "techniques",
-//   "procedures",
-//   "mitre att&ck",
-//   "initial access",
-//   "credential dumping",
-//   "privilege escalation",
-//   "lateral movement",
-//   "command and control (c2)",
-//   "data exfiltration",
-//   "ip address",
-//   "domain",
-//   "file hash (md5, sha-256)",
-//   "registry change",
-//   "unusual traffic",
-//   "malware signature",
-//   "common vulnerabilities and exposures (cve)",
-//   "exploit kit",
-//   "patch",
-//   "zero-day vulnerability",
-//   "software weakness",
-//   "penetration test",
-//   "bug bounty",
-//   "reconnaissance",
-//   "compromise",
-//   "persistence",
-//   "data breach",
-//   "forensic analysis",
-//   "incident response",
-//   "threat feed",
-//   "cyber intelligence",
-//   "incident report",
-//   "threat hunting",
-//   "threat modeling",
-//   "fireeye",
-//   "crowdstrike",
-//   "kaspersky",
-//   "advanced persistent threat (apt)"
-// ]; // Expand as needed
+const extractKeywords = (message: string): string[] => {
+  const keywordList = [
+    "phishing", "malware", "ransomware", "denial-of-service", "dos", "supply chain", "zero-day", "sql injection",
+    "tactics", "techniques", "procedures", "mitre", "spear phishing", "credential dumping",
+    "ioc", "indicators", "ip address", "domain", "file hash", "md5", "sha-256", "registry",
+    "reconnaissance", "initial compromise", "lateral movement", "data exfiltration", "persistence",
+    "incident report", "case study", "breach", "forensic", "analysis",
+    "threat intelligence", "feed", "alienvault", "recorded future", "threat feed"
+  ];  // Expand as needed
 
-//   return keywordList.filter((keyword) => message.toLowerCase().includes(keyword.toLowerCase()));
-// };
+  return keywordList.filter((keyword) => message.toLowerCase().includes(keyword.toLowerCase()));
+};
 
-// const fetchCyberSecurityContent = async (keywords: string[]) => {
-//   if (keywords.length === 0) return [];
+const fetchCyberSecurityContent = async (keywords: string[]) => {
+  if (keywords.length === 0) return [];
 
-//   const filterExpressions = keywords.map((_, index) => `contains(content, :kw${index})`).join(" OR ");
-//   const expressionAttributeValues = keywords.reduce((acc, keyword, index) => {
-//     acc[`:kw${index}`] = keyword;
-//     return acc;
-//   }, {} as Record<string, string>);
+  const filterExpressions = keywords.map((_, index) => `contains(ThreatCategories, :kw${index})`).join(" OR ");
+  const expressionAttributeValues = keywords.reduce((acc, keyword, index) => {
+    acc[`:kw${index}`] = { S: keyword };
+    return acc;
+  }, {} as Record<string, { S: string }>);
 
-//   const params = {
-//     TableName: TABLE_NAME,
-//     FilterExpression: filterExpressions,
-//     ExpressionAttributeValues: expressionAttributeValues,
-//   };
+  const params = {
+    TableName: TABLE_NAME,
+    FilterExpression: filterExpressions,
+    ExpressionAttributeValues: expressionAttributeValues,
+  };
 
-//   const data = await dynamoDB.scan(params).promise();
-//   return data.Items || [];
-// };
+  const data = await dynamoDB.scan(params).promise();
+
+  return (data.Items || []).map(item => item.RawContent);
+};
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -129,17 +80,26 @@ export const handler = async (
       };
     }
 
+    const userMessageObj = messages.find(msg => msg.role === "user");
+
+    let userMessage = "";
+    if (typeof userMessageObj?.content === "string") {
+        userMessage = userMessageObj.content;
+    } else if (Array.isArray(userMessageObj?.content)) {
+        userMessage = userMessageObj.content.map(part => part.toString()).join(" ");
+    }
+
     // // Extract relevant keywords from the user message
-    // const keywords = extractKeywords(userMessage);
+    const keywords = extractKeywords(userMessage);
 
     // // Fetch only related cybersecurity data
-    // const cyberSecurityData = await fetchCyberSecurityContent(keywords);
+    const cyberSecurityData = await fetchCyberSecurityContent(keywords);
 
     // Format the fetched content for the AI model
-    // let formattedContent = "";
-    // if (cyberSecurityData.length > 0) {
-    //   formattedContent = cyberSecurityData.map((item) => `- ${item.title}: ${item.content}`).join("\n");
-    // }
+    let formattedContent = "";
+    if (cyberSecurityData.length > 0) {
+      formattedContent = cyberSecurityData.map((item, index) => `${index + 1}: ${item}`).join("\n");
+    }
 
     if (!messages.find((message) => message.role === "system")) {
       messages.unshift({
@@ -149,12 +109,12 @@ export const handler = async (
     }
 
     // Inject system prompt dynamically with relevant cybersecurity data
-    // if (!messages.find((message) => message.role === "system")) {
-    //   messages.unshift({
-    //     role: "system",
-    //     content: DEFAULT_SYSTEM_PROMPT + `Below is the latest relevant cybersecurity information:\n\n${formattedContent}`,
-    //   });
-    // }
+    if (!messages.find((message) => message.role === "system")) {
+      messages.unshift({
+        role: "system",
+        content: DEFAULT_SYSTEM_PROMPT + `Below is the latest relevant cybersecurity information:\n\n${formattedContent}`,
+      });
+    }
 
 
     const response = await openai.chat.completions.create({
