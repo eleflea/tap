@@ -115,7 +115,7 @@ export const handler = async (
     const systemMessage: ChatCompletionMessageParam = {
       role: "system",
       content: formattedContent
-        ? DEFAULT_SYSTEM_PROMPT + `\n\nUse these information:\n\n${formattedContent}`
+        ? DEFAULT_SYSTEM_PROMPT + `\n\nUsing these information in your response:\n\n${formattedContent}`
         : DEFAULT_SYSTEM_PROMPT,
     };
 
