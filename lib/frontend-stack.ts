@@ -23,6 +23,8 @@ export class FrontendStack extends cdk.Stack {
       },
     });
 
+    amplifyApp.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+
     const masterBranch = amplifyApp.addBranch(
       process.env.GITHUB_BRANCH ?? "main"
     );

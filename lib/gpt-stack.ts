@@ -14,7 +14,7 @@ export class GPTStack extends cdk.Stack {
     // Create the Lambda function
     const chatGPTHandler = new NodejsFunction(this, "ChatGPTHandler", {
       runtime: Runtime.NODEJS_22_X,
-      entry: join(__dirname, "../src/lambda/chatGPTHandler.ts"),
+      entry: join(__dirname, "../src/lambdas/chatGPT/chatGPTHandler.ts"),
       handler: "handler",
       timeout: cdk.Duration.seconds(120),
       environment: {
@@ -23,6 +23,8 @@ export class GPTStack extends cdk.Stack {
         MODEL_NAME: process.env.MODEL_NAME || "deepseek/deepseek-chat:free",
       },
     });
+
+    chatGPTHandler.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
 
     // Create API Gateway
     const api = new apigateway.RestApi(this, "ChatGPTApi", {
@@ -33,6 +35,8 @@ export class GPTStack extends cdk.Stack {
         allowMethods: apigateway.Cors.ALL_METHODS,
       },
     });
+
+    api.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
 
     // Create API resource and method
     const chatGPT = api.root.addResource("chat");
