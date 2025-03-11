@@ -43,13 +43,19 @@ const Home = () => {
           {chats.map((chat, index) => (
             <div
               key={index}
-              className={`p-2 rounded-lg max-w-xs ${
-                chat.role === "user"
-                  ? "bg-blue-500 text-white self-end"
-                  : "bg-gray-200 text-gray-800 self-start"
+              className={`flex ${
+                chat.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              {chat.role}: <ReactMarkdown>{chat.content}</ReactMarkdown>
+              <div
+                className={`p-2 rounded-lg max-w-xs ${
+                  chat.role === "user"
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-200 text-gray-800"
+                }`}
+              >
+                <ReactMarkdown>{chat.content}</ReactMarkdown>
+              </div>
             </div>
           ))}
         </div>
