@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
@@ -46,7 +47,7 @@ const Home = () => {
                 : "bg-gray-200 text-gray-800 self-start"
             }`}
           >
-            {chat.role}: {chat.content}
+            {chat.role}: <ReactMarkdown>{chat.content}</ReactMarkdown>
           </div>
         ))}
       </div>
