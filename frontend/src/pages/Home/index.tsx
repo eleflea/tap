@@ -34,6 +34,7 @@ const Home = () => {
       setChats((prev) => [...prev, botMessage]);
     });
   };
+  
 
   return (
     <div className="w-full h-screen max-h-screen flex flex-col justify-center items-center bg-gray-100 gap-6">
