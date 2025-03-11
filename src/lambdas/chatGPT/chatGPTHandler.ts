@@ -55,28 +55,17 @@ const fetchCyberSecurityContent = async (keywords: string[]) => {
   const relevantContent: string[] = [];
 
   for (const item of data.Items || []) {
-    let threatCategories;
+    let threatCategories = item.ThreatCategories
+    if (!threatCategories) continue;
 
-    try {
-        threatCategories = JSON.parse(item.ThreatCategories);
-    } catch (error) {
-        threatCategories = null; // Handle invalid JSON
-    }
-
-    // Check if threatCategories is null, undefined, or an empty object/array
-    if (!threatCategories || (Array.isArray(threatCategories) && threatCategories.length === 0) || 
-        (typeof threatCategories === 'object' && Object.keys(threatCategories).length === 0)) {
-        continue;
-    }
+    threatCategories = JSON.parse(item.ThreatCategories);
 
     for (const category in threatCategories) {
-      if (threatCategories[category].L) {
-        const categoryKeywords = threatCategories[category].L.map((entry: { S: string }) => entry.S.toLowerCase());
-
-        if (keywords.some(keyword => categoryKeywords.includes(keyword.toLowerCase()))) {
+      const categoryKeywords: string[] = threatCategories[category].map((keyword: string) => keyword.toLowerCase());
+    
+      if (keywords.some((keyword: string) => categoryKeywords.includes(keyword.toLowerCase()))) {
           relevantContent.push(item.RawContent);
           break; // Avoid duplicates if multiple keywords match
-        }
       }
     }
   }
