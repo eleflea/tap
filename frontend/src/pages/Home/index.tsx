@@ -6,9 +6,7 @@ interface Message {
   content: string;
 }
 
-const chatApi =
-  process.env.REACT_APP_API_URL ??
-  "wss://7rmra19uq0.execute-api.ap-southeast-2.amazonaws.com/prod";
+const chatApi = process.env.REACT_APP_API_URL ?? "";
 
 const getResponse = async (
   messages: Message[],
