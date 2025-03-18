@@ -6,11 +6,13 @@ interface Message {
   content: string;
 }
 
-const chatApi = process.env.REACT_APP_API_URL ?? "";
+const chatApi =
+  process.env.REACT_APP_API_URL ??
+  "wss://7rmra19uq0.execute-api.ap-southeast-2.amazonaws.com/prod";
 
 const getResponse = async (
   messages: Message[],
-  appendResponse: (delta: string) => void
+  appendResponse: (delta: string, isEnded?: boolean) => void
 ) => {
   const socket = new WebSocket(chatApi);
 
@@ -26,12 +28,15 @@ const getResponse = async (
 
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    appendResponse(data.choices[0].delta.content);
+    if ("choices" in data && data.choices.length > 0) {
+      appendResponse(data.choices[0].delta.content);
+    }
   };
-  
+
   socket.onclose = () => {
     console.log("WebSocket connection closed.");
     socket.close();
+    appendResponse("", true);
   };
 
   socket.onerror = (error) => {
@@ -42,30 +47,41 @@ const getResponse = async (
 const Home = () => {
   const [chats, setChats] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isResponsing, setIsResponsing] = useState(false);
 
-  const appendResponse = (delta: string) => {
+  const appendResponse = (delta: string, isEnded?: boolean) => {
     setChats((prev) => {
-      if (prev.at(-1)?.role === "user") {
-        return [...prev, { role: "assistant", content: delta }];
+      if (prev.at(-1)?.content === "") {
+        setIsLoading(false);
       }
       return [
         ...prev.slice(0, -1),
         { role: "assistant", content: prev.at(-1)?.content + delta },
       ];
     });
+
+    if (isEnded) {
+      setIsResponsing(false);
+    }
   };
 
   const handleSend = () => {
     if (!input.trim()) return;
 
     const userMessage = { role: "user", content: input } as Message;
-    const nextChats = [...chats, userMessage];
+    const nextChats = [
+      ...chats,
+      userMessage,
+      { role: "assistant", content: "" } as Message,
+    ];
+    setIsLoading(true);
+    setIsResponsing(true);
     setChats(nextChats);
     setInput("");
 
     getResponse(nextChats, appendResponse);
   };
-  
 
   return (
     <div className="w-full h-screen max-h-screen flex flex-col justify-center items-center bg-gray-100 gap-6">
@@ -80,12 +96,19 @@ const Home = () => {
               }`}
             >
               <div
-                className={`p-2 rounded-lg max-w-xl ${
+                className={`p-2 rounded-lg max-w-3xl ${
                   chat.role === "user"
                     ? "bg-blue-500 text-white"
                     : "bg-gray-200 text-gray-800"
                 }`}
               >
+                {isLoading && index === chats.length - 1 && (
+                  <div className="flex space-x-1 h-4 justify-center items-center">
+                    <div className="w-1 h-1 bg-gray-500 rounded-full animate-bounce"></div>
+                    <div className="w-1 h-1 bg-gray-500 rounded-full animate-bounce delay-100"></div>
+                    <div className="w-1 h-1 bg-gray-500 rounded-full animate-bounce delay-200"></div>
+                  </div>
+                )}
                 <ReactMarkdown>{chat.content}</ReactMarkdown>
               </div>
             </div>
@@ -101,8 +124,9 @@ const Home = () => {
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
           />
           <button
-            className="ml-2 p-2 bg-blue-500 text-white rounded-lg"
+            className="ml-2 p-2 bg-blue-500 text-white rounded-lg disabled:bg-gray-300"
             onClick={handleSend}
+            disabled={isResponsing}
           >
             Send
           </button>
