@@ -177,6 +177,8 @@ export const handler = async (
         : DEFAULT_SYSTEM_PROMPT,
     };
 
+    console.log("System message:", systemMessage);
+
     // Ensure only one system prompt is added
     const existingSystemMessageIndex = messages.findIndex(
       (msg) => msg.role === "system"
@@ -202,14 +204,9 @@ export const handler = async (
         "https://"
       ),
     });
-    for await (const chunk of responseStream) {
-      console.log("connectionId", connectionId);
-      console.log(
-        "Sending message to client",
-        process.env.WEBSOCKET_API_ENDPOINT?.replace("wss://", "https://"),
-        JSON.stringify(chunk)
-      );
 
+    // Send the AI response to the client in chunks
+    for await (const chunk of responseStream) {
       try {
         await client.send(
           new PostToConnectionCommand({
@@ -222,13 +219,13 @@ export const handler = async (
       }
     }
 
+    // Close the WebSocket connection after the conversation is complete
     try {
       await client.send(
         new DeleteConnectionCommand({
           ConnectionId: connectionId ?? "",
         })
       );
-      console.log(`WebSocket connection ${connectionId} closed.`);
     } catch (error) {
       console.error("Error closing WebSocket connection", error);
     }
