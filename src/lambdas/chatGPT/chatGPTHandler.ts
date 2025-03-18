@@ -2,6 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDB } from "aws-sdk";
 import {
   ApiGatewayManagementApiClient,
+  DeleteConnectionCommand,
   PostToConnectionCommand,
 } from "@aws-sdk/client-apigatewaymanagementapi";
 import OpenAI from "openai";
@@ -219,6 +220,17 @@ export const handler = async (
       } catch (error) {
         console.error("Error sending message to client", error);
       }
+    }
+
+    try {
+      await client.send(
+        new DeleteConnectionCommand({
+          ConnectionId: connectionId ?? "",
+        })
+      );
+      console.log(`WebSocket connection ${connectionId} closed.`);
+    } catch (error) {
+      console.error("Error closing WebSocket connection", error);
     }
 
     return { statusCode: 200, body: "Message processed" };

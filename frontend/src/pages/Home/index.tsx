@@ -30,9 +30,10 @@ const getResponse = async (
     const data = JSON.parse(event.data);
     appendResponse(data.choices[0].delta.content);
   };
-
+  
   socket.onclose = () => {
     console.log("WebSocket connection closed.");
+    socket.close();
   };
 
   socket.onerror = (error) => {
