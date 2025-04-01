@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import localForage from "localforage";
 
 interface Message {
   role: "user" | "assistant";
@@ -7,7 +8,7 @@ interface Message {
 }
 
 interface Chat {
-  id: number;
+  uuid: string;
   messages: Message[];
 }
 
@@ -49,20 +50,29 @@ const getResponse = async (
 
 const Home = () => {
   const [chats, setChats] = useState<Chat[]>([]);
-  const [activeChatId, setActiveChatId] = useState<number>(1);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isResponsing, setIsResponsing] = useState(false);
-  const activeChat = chats.find((chat) => chat.id === activeChatId);
 
-  if (chats.length === 0) {
-    setChats([{ id: 1, messages: [] }]);
-  }
+  useEffect(() => {
+    const newChatUuid = crypto.randomUUID();
+    localForage.getItem<Chat[]>("chats").then((chats) => {
+      if (chats) {
+        setChats([...chats, { uuid: newChatUuid, messages: [] }]);
+      } else {
+        setChats([{ uuid: newChatUuid, messages: [] }]);
+      }
+    });
+    setActiveChatId(newChatUuid);
+  }, []);
+
+  const activeChat = chats.find((chat) => chat.uuid === activeChatId);
 
   const setActiveChat = (func: (prev: Message[]) => Message[]) => {
     setChats(
       chats.map((chat) => {
-        if (chat.id === activeChatId) {
+        if (chat.uuid === activeChatId) {
           chat.messages = func(chat.messages);
         }
         return chat;
@@ -71,7 +81,7 @@ const Home = () => {
   };
 
   const newChat = () =>
-    setChats([...chats, { id: chats.length + 1, messages: [] }]);
+    setChats([...chats, { uuid: crypto.randomUUID(), messages: [] }]);
   const hasNewChat =
     chats.find((chat) => chat.messages.length === 0) !== undefined;
 
@@ -88,6 +98,7 @@ const Home = () => {
 
     if (isEnded) {
       setIsResponsing(false);
+      localForage.setItem("chats", chats);
     }
   };
 
@@ -118,13 +129,13 @@ const Home = () => {
         <div className="w-48 flex flex-col gap-1 bg-gray-50 p-4">
           {chats.map((chat) => (
             <button
-              key={chat.id}
+              key={chat.uuid}
               className={`p-2 rounded-lg text-left truncate h-10 ${
-                chat.id === activeChatId
+                chat.uuid === activeChatId
                   ? "bg-gray-200 text-gray-800"
                   : "text-gray-800"
               }`}
-              onClick={() => setActiveChatId(chat.id)}
+              onClick={() => setActiveChatId(chat.uuid)}
             >
               {chat.messages.at(0)?.content ?? "New Chat"}
             </button>
