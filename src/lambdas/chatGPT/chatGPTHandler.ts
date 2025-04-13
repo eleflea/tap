@@ -8,21 +8,22 @@ import {
 import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources";
 
-const DEFAULT_SYSTEM_PROMPT = `You are an expert in cybersecurity with extensive knowledge and hands-on experience in network security, threat intelligence, cryptography, ethical hacking, and risk management. Your goal is to provide accurate, up-to-date, and actionable insights to users based on your expertise and the latest cybersecurity news, trends, and threat reports.  
+const DEFAULT_SYSTEM_PROMPT = `
+You are a highly knowledgeable and experienced cybersecurity expert. Your goal is to provide precise, practical, and current insights tailored to user queries.
 
-You must:  
-- Stay current with emerging cybersecurity threats, vulnerabilities, and mitigation strategies.  
-- Reference recent security incidents, research papers, and industry reports where applicable.  
-- Offer practical advice on security best practices, risk assessment, and defense mechanisms.  
-- Maintain clarity and precision, avoiding unnecessary jargon unless the user requests technical depth.  
+Your expertise spans:
+- Threat intelligence, malware analysis, and incident response
+- Network security, cryptography, and penetration testing
+- Cyber risk assessment, compliance (GDPR, NIST, ISO 27001), and governance
 
-When answering questions, consider:  
-- The latest exploits, malware campaigns, or vulnerabilities (e.g., CVEs).  
-- Recent cybersecurity regulations and compliance requirements (e.g., GDPR, NIST, ISO 27001).  
-- Notable cybersecurity events, breaches, and their impact on businesses and individuals.  
-- Best practices for securing networks, systems, and applications against modern cyber threats.  
+Instructions:
+- Use clear, concise language; avoid jargon unless technical depth is requested
+- Incorporate recent cybersecurity events, breaches, CVEs, or research papers when relevant
+- Offer best practices, mitigation strategies, and actionable advice
+- If real-time data is needed, suggest reputable sources (e.g., CISA, MITRE, NVD)
 
-Always prioritize accuracy, reliability, and relevance, ensuring your responses are both informative and actionable. If a question requires real-time or highly specific data, you may refer to credible sources or suggest where users can find the most recent information.`;
+Always prioritize clarity, relevance, and value.
+`;
 
 const modelName = process.env.MODEL_NAME || "deepseek-v3";
 
@@ -35,92 +36,82 @@ const openai = new OpenAI({
 const dynamoDB = new DynamoDB.DocumentClient();
 const TABLE_NAME = "CyberThreatData";
 
-const extractKeywords = (message: string): string[] => {
-  const keywordList = [
-    "phishing",
-    "malware",
-    "ransomware",
-    "denial-of-service",
-    "dos",
-    "supply chain",
-    "zero-day",
-    "sql injection",
-    "tactics",
-    "techniques",
-    "procedures",
-    "mitre",
-    "spear phishing",
-    "credential dumping",
-    "ioc",
-    "indicators",
-    "ip address",
-    "domain",
-    "file hash",
-    "md5",
-    "sha-256",
-    "registry",
-    "reconnaissance",
-    "initial compromise",
-    "lateral movement",
-    "data exfiltration",
-    "persistence",
-    "incident report",
-    "case study",
-    "breach",
-    "forensic",
-    "analysis",
-    "threat intelligence",
-    "feed",
-    "alienvault",
-    "recorded future",
-    "threat feed",
-  ]; // Expand as needed
+const keywordList = [
+  "phishing", "malware", "ransomware", "denial-of-service", "dos",
+  "supply chain", "zero-day", "sql injection", "tactics", "techniques",
+  "procedures", "mitre", "spear phishing", "credential dumping", "ioc",
+  "indicators", "ip address", "domain", "file hash", "md5", "sha-256",
+  "registry", "reconnaissance", "initial compromise", "lateral movement",
+  "data exfiltration", "persistence", "incident report", "case study",
+  "breach", "forensic", "analysis", "threat intelligence", "feed",
+  "alienvault", "recorded future", "threat feed",
+];
 
-  return keywordList.filter((keyword) =>
-    message.toLowerCase().includes(keyword.toLowerCase())
-  );
+const extractKeywords = (message: string): string[] => {
+  const keywordSet = new Set<string>();
+  const lowerMsg = message.toLowerCase();
+
+  keywordList.forEach((kw) => {
+    if (new RegExp(`\\b${kw}\\b`, "i").test(lowerMsg)) {
+      keywordSet.add(kw);
+    }
+  });
+
+  return Array.from(keywordSet);
 };
 
 const fetchCyberSecurityContent = async (keywords: string[]) => {
   if (keywords.length === 0) return [];
 
-  const params = {
-    TableName: TABLE_NAME,
-  };
+  const data = await dynamoDB.scan({ TableName: TABLE_NAME }).promise();
+  const matchedContent = [];
 
-  const data = await dynamoDB.scan(params).promise();
+  for (const item of data.Items || []) {
+    const rawContent = item.RawContent?.S;
+    const categories = item.ThreatCategories?.M;
 
-  const threatContents: any = []
-  const relevantContent: string[] = [];
+    if (!rawContent || !categories) continue;
 
-  // Extract and collect all S values from ThreatCategories
-  const threatCategories = (data.Items || []).map(item => {
-      threatContents.push(item.RawContent.S)
+    const allValues = Object.values(categories)
+      .flatMap((entry: any) => entry.L.map((val: any) => val.S.toLowerCase()));
 
-      const categories = item.ThreatCategories.M;
-      const allValues: any[] = [];
-      
-      // Loop through each category and extract "S" values
-      Object.keys(categories).forEach(key => {
-          const valuesList = categories[key].L;
-          const sValues = valuesList.map((entry: any) => entry.S);
-          allValues.push(sValues);
-      });
+    const matched = keywords.some((k) => allValues.includes(k.toLowerCase()));
+    if (matched) matchedContent.push(rawContent);
+  }
 
-      return allValues;
-  });
+  return matchedContent;
+};
 
-  threatCategories.forEach((threats, index) => {
-    threats.forEach((threat, threatIndex) => {
-        threat.forEach((keyword: any, keywordIndex: any) => {
-            if (keywords.includes(keyword)) {
-                relevantContent.push(threatContents[index])
-            }  
+const injectDynamicContext = (
+  basePrompt: string,
+  extraContent: string[]
+): string => {
+  if (extraContent.length === 0) return basePrompt;
+
+  const formatted = extraContent
+    .map((item, i) => `${i + 1}. ${item}`)
+    .join("\n");
+
+  return `${basePrompt}\n\nUse the following threat intelligence insights:\n${formatted}`;
+};
+
+const streamToClient = async (
+  client: ApiGatewayManagementApiClient,
+  connectionId: string,
+  stream: AsyncIterable<any>
+) => {
+  for await (const chunk of stream) {
+    try {
+      await client.send(
+        new PostToConnectionCommand({
+          ConnectionId: connectionId,
+          Data: Buffer.from(JSON.stringify(chunk)),
         })
-    })
-  });
-
-  return relevantContent;
+      );
+    } catch (err) {
+      console.error("Error sending chunk to client:", err);
+    }
+  }
 };
 
 export const handler = async (
@@ -129,13 +120,8 @@ export const handler = async (
   try {
     const { routeKey, connectionId } = event.requestContext;
 
-    if (routeKey === "$connect") {
-      return { statusCode: 200, body: "Connected" };
-    }
-
-    if (routeKey === "$disconnect") {
-      return { statusCode: 200, body: "Disconnected" };
-    }
+    if (routeKey === "$connect") return { statusCode: 200, body: "Connected" };
+    if (routeKey === "$disconnect") return { statusCode: 200, body: "Disconnected" };
 
     const body = JSON.parse(event.body ?? "");
     const messages = body.messages as ChatCompletionMessageParam[];
@@ -145,7 +131,7 @@ export const handler = async (
     if (!messages) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ message: "Messages is required" }),
+        body: JSON.stringify({ message: "Messages are required" }),
       };
     }
 
@@ -155,37 +141,18 @@ export const handler = async (
     if (typeof userMessageObj?.content === "string") {
       userMessage = userMessageObj.content;
     } else if (Array.isArray(userMessageObj?.content)) {
-      userMessage = userMessageObj.content
-        .map((part) => part.toString())
-        .join(" ");
+      userMessage = userMessageObj.content.map((part) => part.toString()).join(" ");
     }
 
-    // Extract relevant keywords from the user message
     const keywords = extractKeywords(userMessage);
-
-    // Fetch only related cybersecurity data
     const cyberSecurityData = await fetchCyberSecurityContent(keywords);
+    const finalPrompt = injectDynamicContext(DEFAULT_SYSTEM_PROMPT, cyberSecurityData);
 
-    // Format the fetched content for the AI model
-    let formattedContent = "";
-    if (cyberSecurityData.length > 0) {
-      formattedContent = cyberSecurityData
-        .map((item, index) => `${index + 1}: ${item}`)
-        .join("\n");
-    }
-
-    // Inject system prompt dynamically with relevant cybersecurity data
     const systemMessage: ChatCompletionMessageParam = {
       role: "system",
-      content: formattedContent
-        ? DEFAULT_SYSTEM_PROMPT +
-          `\n\nUsing these information in your response:\n\n${formattedContent}`
-        : DEFAULT_SYSTEM_PROMPT,
+      content: finalPrompt,
     };
 
-    console.log("System message:", systemMessage);
-
-    // Ensure only one system prompt is added
     const existingSystemMessageIndex = messages.findIndex(
       (msg) => msg.role === "system"
     );
@@ -205,27 +172,11 @@ export const handler = async (
     });
 
     const client = new ApiGatewayManagementApiClient({
-      endpoint: process.env.WEBSOCKET_API_ENDPOINT?.replace(
-        "wss://",
-        "https://"
-      ),
+      endpoint: process.env.WEBSOCKET_API_ENDPOINT?.replace("wss://", "https://"),
     });
 
-    // Send the AI response to the client in chunks
-    for await (const chunk of responseStream) {
-      try {
-        await client.send(
-          new PostToConnectionCommand({
-            ConnectionId: connectionId ?? "",
-            Data: Buffer.from(JSON.stringify(chunk)),
-          })
-        );
-      } catch (error) {
-        console.error("Error sending message to client", error);
-      }
-    }
+    await streamToClient(client, connectionId ?? "", responseStream);
 
-    // Close the WebSocket connection after the conversation is complete
     try {
       await client.send(
         new DeleteConnectionCommand({
@@ -238,6 +189,7 @@ export const handler = async (
 
     return { statusCode: 200, body: "Message processed" };
   } catch (error) {
+    console.error("Handler error:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({ message: `Error: ${(error as Error).message}` }),
