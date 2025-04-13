@@ -90,29 +90,35 @@ const fetchCyberSecurityContent = async (keywords: string[]) => {
 
   const data = await dynamoDB.scan(params).promise();
 
+  const threatContents: any = []
   const relevantContent: string[] = [];
 
-  for (const item of data.Items || []) {
-    let threatCategories = item.ThreatCategories;
-    if (!threatCategories) continue;
+  // Extract and collect all S values from ThreatCategories
+  const threatCategories = (data.Items || []).map(item => {
+      threatContents.push(item.RawContent.S)
 
-    threatCategories = JSON.parse(item.ThreatCategories);
+      const categories = item.ThreatCategories.M;
+      const allValues: any[] = [];
+      
+      // Loop through each category and extract "S" values
+      Object.keys(categories).forEach(key => {
+          const valuesList = categories[key].L;
+          const sValues = valuesList.map((entry: any) => entry.S);
+          allValues.push(sValues);
+      });
 
-    for (const category in threatCategories) {
-      const categoryKeywords: string[] = threatCategories[category].map(
-        (keyword: string) => keyword.toLowerCase()
-      );
+      return allValues;
+  });
 
-      if (
-        keywords.some((keyword: string) =>
-          categoryKeywords.includes(keyword.toLowerCase())
-        )
-      ) {
-        relevantContent.push(item.RawContent);
-        break; // Avoid duplicates if multiple keywords match
-      }
-    }
-  }
+  threatCategories.forEach((threats, index) => {
+    threats.forEach((threat, threatIndex) => {
+        threat.forEach((keyword: any, keywordIndex: any) => {
+            if (keywords.includes(keyword)) {
+                relevantContent.push(threatContents[index])
+            }  
+        })
+    })
+  });
 
   return relevantContent;
 };

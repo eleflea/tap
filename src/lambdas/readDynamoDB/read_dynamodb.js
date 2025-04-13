@@ -12,8 +12,15 @@ exports.handler = async (event) => {
         const command = new ScanCommand(params);
         const data = await client.send(command);
 
+        const threatContents = []
+
+        const keywords = ['ransomware']
+        const results = []
+
         // Extract and collect all S values from ThreatCategories
         const threatCategories = data.Items.map(item => {
+            threatContents.push(item.RawContent.S)
+
             const categories = item.ThreatCategories.M;
             const allValues = [];
             
@@ -26,10 +33,22 @@ exports.handler = async (event) => {
 
             return allValues;
         });
-        
+
+        console.log(threatContents)
+
+        threatCategories.forEach((threats, index) => {
+            threats.forEach((threat, threatIndex) => {
+                threat.forEach((keyword, keywordIndex) => {
+                    if (keywords.includes(keyword)) {
+                        results.push(threatContents[index])
+                    }  
+                })
+            })
+        });
+
         return {
             statusCode: 200,
-            body: JSON.stringify(threatCategories),
+            body: JSON.stringify(results),
         };
     } catch (error) {
         console.error("Error reading from DynamoDB", error);
