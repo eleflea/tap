@@ -92,7 +92,7 @@ const injectDynamicContext = (
     .map((item, i) => `${i + 1}. ${item}`)
     .join("\n");
 
-  return `${basePrompt}\n\nUse the following threat intelligence insights:\n${formatted}`;
+  return `${basePrompt}\n\nConsider the following threat intelligence insights:\n${formatted}`;
 };
 
 const streamToClient = async (
