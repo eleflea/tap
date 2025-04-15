@@ -67,11 +67,8 @@ Before setting up the project, ensure you have the following installed and confi
 
 To test the system:
 
-1. Go to the **API Gateway** console in AWS.
-2. Locate and copy the endpoint URL (make sure it ends in `/websites`).
-3. Replace the placeholder URL in `apis/index.txt` with the actual API URL.
-4. Use **Postman** or terminal to test the endpoints:
-   - `PUT` and `DELETE` requests require an `id` parameter in the URL (as outlined in `apis/index.txt`).
+1. The URL of the client web application is provided under the output value named AmplifyAppUrl.
+2. The endpoint URL of the ChatGPT function is provided under the output value named ChatGPTUrl.
 
 ---
 
