@@ -1,29 +1,31 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as events from 'aws-cdk-lib/aws-events';
-import * as targets from 'aws-cdk-lib/aws-events-targets';
-import { Duration, RemovalPolicy } from 'aws-cdk-lib';
+import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
+import { Construct } from 'constructs';
+import { join } from "path";
 
 export class CrawlerStack extends cdk.Stack {
   public readonly cyberThreatTableArn: string;
-  
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+
+  constructor(scope: Construct, id: string, stageName: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const threatCrawlerLambda = this.createThreatCrawlerLambda();
-    this.createCrawlerScheduler(threatCrawlerLambda, Duration.minutes(10));
-    this.createDynamoDbDatabase();
-    this.createTestGateway(threatCrawlerLambda);
-  }
-
-  private createThreatCrawlerLambda(): lambda.Function {
-    const threatCrawlerFunction = new lambda.Function(this, 'MonitoringFunction', {
+    // Create the Lambda function
+    const crawlerHandler = new lambda.Function(this, 'CrawlerHandler', {
       runtime: lambda.Runtime.PYTHON_3_11,
-      code: lambda.Code.fromAsset('threats_crawler/lambda'),
+      code: lambda.Code.fromAsset(join(__dirname, '../src/lambdas/crawler'), {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+          ],
+        },
+      }),
       handler: 'threats_crawler.lambda_handler',
       initialPolicy: [
         new iam.PolicyStatement({
@@ -39,33 +41,48 @@ export class CrawlerStack extends cdk.Stack {
           resources: ['*'],
         }),
       ],
-    });
-    return threatCrawlerFunction;
-  }
 
-  private createDynamoDbDatabase(): void {
-    new dynamodb.Table(this, 'CyberThreatData', {
+    });
+
+    crawlerHandler.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+
+    const crawlerLambdaEvent = new events.Rule(this,'CrawlerEvent',{
+      description: "Web Crawler run every 5 mins",
+      targets: [new eventsTargets.LambdaFunction(crawlerHandler)],
+      schedule: events.Schedule.rate(cdk.Duration.minutes(2)),
+    });
+
+    crawlerLambdaEvent.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+
+    // Create DynamoDB table
+    const cyberThreatTable = new dynamodb.Table(this, 'CyberThreatData', {
       tableName: 'CyberThreatData',
       partitionKey: { name: 'ThreatID', type: dynamodb.AttributeType.STRING },
       readCapacity: 5,
       writeCapacity: 5,
-      removalPolicy: RemovalPolicy.DESTROY,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
-  }
 
-  private createTestGateway(threatLambda: lambda.Function): void {
-    new apigateway.LambdaRestApi(this, 'ThreatApiGateway', {
-      restApiName: 'CyberThreatApi',
-      handler: threatLambda,
+    // Create API Gateway
+    const api = new apigateway.LambdaRestApi(this, 'ThreatApiGateway', {
+      restApiName: 'CyberThreat API',
+      handler: crawlerHandler,
       proxy: true,
     });
-  }
 
-  private createCrawlerScheduler(threatLambda: lambda.Function, duration: Duration): void {
-    new events.Rule(this, 'ThreatCrawlerRule', {
-      ruleName: 'ThreatCrawlerScheduler',
-      schedule: events.Schedule.rate(duration),
-      targets: [new targets.LambdaFunction(threatLambda)],
+    api.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY)
+
+    // Export the table ARN
+    this.cyberThreatTableArn = cyberThreatTable.tableArn;
+
+    new cdk.CfnOutput(this, 'CyberThreatTableArn', {
+      value: this.cyberThreatTableArn,
+      exportName: 'CyberThreatTableArn',
     });
   }
 }
+
+
+
+
+
