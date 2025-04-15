@@ -37,3 +37,5 @@ cdk.out
 # Ensure Tailwind and PostCSS configs are included
 !frontend/tailwind.config.js
 !frontend/postcss.config.js
+
+.idea
