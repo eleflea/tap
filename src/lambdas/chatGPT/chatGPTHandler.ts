@@ -22,7 +22,7 @@ Instructions:
 - Offer best practices, mitigation strategies, and actionable advice
 - If real-time data is needed, suggest reputable sources (e.g., CISA, MITRE, NVD)
 
-Always prioritize clarity, relevance, and value.
+Always prioritize clarity, relevance, and value. Do not hallucinate. Be accurate, professional, and concise.
 `;
 
 const modelName = process.env.MODEL_NAME || "deepseek-v3";
@@ -92,7 +92,7 @@ const injectDynamicContext = (
     .map((item, i) => `${i + 1}. ${item}`)
     .join("\n");
 
-  return `${basePrompt}\n\nConsider the following threat intelligence insights:\n${formatted}`;
+  return `${basePrompt}\n\nConsider the following threat intelligence insights but if the data does not contain an answer, acknowledge it and offer general advice:\n${formatted}`;
 };
 
 const streamToClient = async (
