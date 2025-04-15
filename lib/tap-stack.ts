@@ -5,6 +5,8 @@ import { GPTStack } from './gpt-stack';
 import { FrontendStack } from './frontend-stack';
 import { CrawlerStack } from './crawler-stack';
 import { ReadDynamoDBStack } from './read-dynmodb-stack';
+import {CodePipeline} from "aws-sdk";
+import {CrawlerPipelineStack} from "./crawler-pipeline-stack";
 
 dotenv.config({ path: ".env.local" });
 
@@ -13,7 +15,7 @@ export class TapStack extends cdk.Stack {
     super(scope, id, props);
 
     // Instantiate the Crawler Stack
-    const crawlerStack = new CrawlerStack(this, "CrawlerStack");
+    const crawlerPipeline = new CrawlerPipelineStack(this, "CrawlerPipelineStack");
 
     // Instantiate the Read DynamoDB Stack - This stack is for debugging purposes only.
     const readDynamoDBStack = new ReadDynamoDBStack(this, "ReadDynamoDBStack", {
@@ -31,7 +33,7 @@ export class TapStack extends cdk.Stack {
     });
 
     // Ensure stacks are deployed in the correct order
-    this.addDependency(crawlerStack);
+    this.addDependency(crawlerPipeline);
     this.addDependency(readDynamoDBStack)
     this.addDependency(gptStack);
     this.addDependency(frontendStack);

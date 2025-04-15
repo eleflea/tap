@@ -11,7 +11,7 @@ import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 export class CrawlerStack extends cdk.Stack {
   public readonly cyberThreatTableArn: string;
   
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, stageName: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
     const threatCrawlerLambda = this.createThreatCrawlerLambda();
