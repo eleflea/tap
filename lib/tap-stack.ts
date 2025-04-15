@@ -13,16 +13,16 @@ export class TapStack extends cdk.Stack {
     super(scope, id, props);
 
     // Instantiate the Crawler Stack
-    const crawlerStack = new CrawlerStack(this, "CrawlerStack");
+    const crawlerStack = new CrawlerStack(this, "CrawlerStack", "Gamma");
 
     // Instantiate the Read DynamoDB Stack - This stack is for debugging purposes only.
     const readDynamoDBStack = new ReadDynamoDBStack(this, "ReadDynamoDBStack", {
-      cyberThreatTableArn: crawlerPipeline.gammaStage.crawlerStack.cyberThreatTableArn,
+      cyberThreatTableArn: crawlerStack.cyberThreatTableArn,
     });
 
     // Instantiate the GPT Stack
     const gptStack = new GPTStack(this, "GPTStack", {
-      cyberThreatTableArn: crawlerPipeline.gammaStage.crawlerStack.cyberThreatTableArn,
+      cyberThreatTableArn: crawlerStack.cyberThreatTableArn,
     });
 
     // Instantiate the Frontend Stack, passing the API URL from GPT Stack
