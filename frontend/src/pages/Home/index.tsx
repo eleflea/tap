@@ -80,8 +80,12 @@ const Home = () => {
     );
   };
 
-  const newChat = () =>
-    setChats([...chats, { uuid: crypto.randomUUID(), messages: [] }]);
+  const newChat = () => {
+    const newChatUuid = crypto.randomUUID();
+    setChats([...chats, { uuid: newChatUuid, messages: [] }]);
+    setActiveChatId(newChatUuid);
+  };
+
   const hasNewChat =
     chats.find((chat) => chat.messages.length === 0) !== undefined;
 
